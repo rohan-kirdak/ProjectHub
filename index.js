@@ -1,4 +1,5 @@
 require("dotenv").config();
+require("./connection"); // Initialize MongoDB Mongoose connection
 const express = require("express");
 var bodyparser = require("body-parser");
 var upload = require("express-fileupload");
@@ -41,14 +42,17 @@ app.use((err, req, res, next) => {
     res.status(500).send("Something went wrong! Please try again later.");
 });
 
-console.log("MYSQLHOST:", process.env.MYSQLHOST);
-console.log("MYSQLDB:", process.env.MYSQLDATABASE);
+console.log("MONGODB_URI:", process.env.MONGODB_URI);
 console.log("PORT:", process.env.PORT);
 
 const PORT = process.env.PORT || 8080;
 const HOST = '0.0.0.0';
 
-app.listen(PORT, HOST, () => {
-    console.log(`✅ Server running on http://localhost:${PORT}`);
-    console.log(`📌 Admin Panel: http://localhost:${PORT}/admin`);
-});
+if (process.env.NODE_ENV !== 'production' || process.env.RENDER) {
+    app.listen(PORT, HOST, () => {
+        console.log(`✅ Server running on http://localhost:${PORT}`);
+        console.log(`📌 Admin Panel: http://localhost:${PORT}/admin`);
+    });
+}
+
+module.exports = app;

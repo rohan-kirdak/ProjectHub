@@ -1,15 +1,52 @@
 var express = require("express");
-var exe = require("./../connection");
 var router = express.Router();
+const {
+    Category,
+    ReadyProject,
+    MiniProject,
+    BundleProject,
+    CustomizedProject,
+    EcommerceProject,
+    WebDevelopmentProject,
+    FullstackProject,
+    MobileProject,
+    AiProject,
+    DsProject,
+    GamingProject,
+    CyberProject,
+    BlockchainProject,
+    CloudProject,
+    ElearningProject,
+    Roadmap,
+    Comment,
+    Order
+} = require("./../models");
+
 router.use("/uploads", express.static("public/uploads"));
 router.use(express.urlencoded({ extended: true }));
 
+// Map of category key -> Mongoose Model
+const projectModelMap = {
+    "ready": ReadyProject,
+    "mini": MiniProject,
+    "bundle": BundleProject,
+    "ecommerce": EcommerceProject,
+    "web": WebDevelopmentProject,
+    "fullstack": FullstackProject,
+    "mobile": MobileProject,
+    "ai": AiProject,
+    "ds": DsProject,
+    "gaming": GamingProject,
+    "cyber": CyberProject,
+    "blockchain": BlockchainProject,
+    "cloud": CloudProject,
+    "elearning": ElearningProject
+};
 
 // Route for home page (index.ejs)
 router.get("/", async function (req, res) {
     try {
-        var sql = `SELECT * FROM categories`;
-        var categories = await exe(sql);
+        var categories = await Category.find();
         res.render("user/index.ejs", { categories });
     } catch (err) {
         console.error("Error fetching categories:", err);
@@ -49,46 +86,55 @@ router.get("/blog-details", async function (req, res) {
 
 router.get("/ready-project-details", async function (req, res) {
     var search = req.query.search || "";
-    var sql = `SELECT * FROM ready_projects`;
-    var params = [];
-
+    var query = {};
     if (search) {
-        sql += ` WHERE ProjectTitle LIKE ? OR ProjectDescription LIKE ? OR ProjectCategory LIKE ?`;
-        params = [`%${search}%`, `%${search}%`, `%${search}%`];
+        query = {
+            $or: [
+                { ProjectTitle: { $regex: search, $options: "i" } },
+                { ProjectDescription: { $regex: search, $options: "i" } },
+                { ProjectCategory: { $regex: search, $options: "i" } }
+            ]
+        };
     }
-
-    var ready_projects = await exe(sql, params);
+    var ready_projects = await ReadyProject.find(query);
     res.render("user/ready-project-details.ejs", { ready_projects, search });
 });
 
 router.get("/single-project-details/:id", async function (req, res) {
-    var sql = `SELECT * FROM ready_projects WHERE ProjectID = ?`;
-    var result = await exe(sql, [req.params.id]);
-    res.render("user/single-project-details.ejs", { single_ready_projects: result[0] });
+    try {
+        var result = await ReadyProject.findById(req.params.id);
+        res.render("user/single-project-details.ejs", { single_ready_projects: result });
+    } catch (err) {
+        res.render("user/single-project-details.ejs", { single_ready_projects: null });
+    }
 });
 
 router.get("/mini-project-details", async function (req, res) {
-    var sql = `SELECT * FROM mini_projects`;
-    var mini_projects = await exe(sql);
+    var mini_projects = await MiniProject.find();
     res.render("user/mini-project-details.ejs", { mini_projects });
 });
 
 router.get("/mini-singlepage-project-details/:id", async function (req, res) {
-    var sql = `SELECT * FROM mini_projects WHERE ProjectID = ?`;
-    var result = await exe(sql, [req.params.id]);
-    res.render("user/mini-singlepage-project-details.ejs", { single_mini_project: result[0] });
+    try {
+        var result = await MiniProject.findById(req.params.id);
+        res.render("user/mini-singlepage-project-details.ejs", { single_mini_project: result });
+    } catch (err) {
+        res.render("user/mini-singlepage-project-details.ejs", { single_mini_project: null });
+    }
 });
 
 router.get("/bundle-project-details", async function (req, res) {
-    var sql = `SELECT * FROM bundle_projects`;
-    var bundle_projects = await exe(sql);
+    var bundle_projects = await BundleProject.find();
     res.render("user/bundle-project-details.ejs", { bundle_projects });
 });
 
 router.get("/bundle-singlepage-project-details/:id", async function (req, res) {
-    var sql = `SELECT * FROM bundle_projects WHERE ProjectID = ?`;
-    var result = await exe(sql, [req.params.id]);
-    res.render("user/bundle-singlepage-project-details.ejs", { single_bundle_project: result[0] });
+    try {
+        var result = await BundleProject.findById(req.params.id);
+        res.render("user/bundle-singlepage-project-details.ejs", { single_bundle_project: result });
+    } catch (err) {
+        res.render("user/bundle-singlepage-project-details.ejs", { single_bundle_project: null });
+    }
 });
 
 router.get("/customized-project-details", async function (req, res) {
@@ -107,9 +153,13 @@ router.get("/languages", async function (req, res) {
 router.post("/submit_project", async function (req, res) {
     try {
         var d = req.body;
-        var sql = `INSERT INTO customized_projects (name, email, phone, technology, description) 
-                   VALUES (?, ?, ?, ?, ?)`;
-        await exe(sql, [d.name, d.email, d.phone, d.technology, d.description]);
+        await CustomizedProject.create({
+            name: d.name,
+            email: d.email,
+            phone: d.phone,
+            technology: d.technology,
+            description: d.description
+        });
         res.redirect("/customized-project-details");
     } catch (err) {
         console.error("Error inserting data:", err);
@@ -130,8 +180,7 @@ router.post("/submit-comment", async (req, res) => {
             return res.status(400).json({ success: false, message: "Please enter a valid email address" });
         }
 
-        const sql = `INSERT INTO comments (name, email, message) VALUES (?, ?, ?)`;
-        await exe(sql, [name, email, message]);
+        await Comment.create({ name, email, message });
 
         res.json({ success: true, message: "Thank you for contacting us! Our representative will contact you soon." });
     } catch (err) {
@@ -142,8 +191,7 @@ router.post("/submit-comment", async (req, res) => {
 
 router.get('/roadmaps', async (req, res) => {
     try {
-        const query = 'SELECT title, short_description, image, category, duration FROM roadmaps';
-        const results = await exe(query);
+        const results = await Roadmap.find();
         res.render('user/roadmaps', { roadmaps: results });
     } catch (err) {
         console.error('Error fetching roadmaps:', err);
@@ -230,21 +278,18 @@ router.post("/verify-payment", async (req, res) => {
         }
 
         // Save order to database
-        const sql = `INSERT INTO orders 
-            (order_id, payment_id, project_id, project_type, project_title, amount, buyer_name, buyer_email, buyer_phone, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PAID', NOW())`;
-
-        await exe(sql, [
-            razorpay_order_id,
-            razorpay_payment_id,
-            projectId,
-            projectType,
-            projectTitle,
-            amount,
-            buyerName,
-            buyerEmail,
-            buyerPhone
-        ]);
+        await Order.create({
+            order_id: razorpay_order_id,
+            payment_id: razorpay_payment_id,
+            project_id: projectId,
+            project_type: projectType,
+            project_title: projectTitle,
+            amount: amount,
+            buyer_name: buyerName,
+            buyer_email: buyerEmail,
+            buyer_phone: buyerPhone,
+            status: "PAID"
+        });
 
         res.json({
             success: true,
@@ -264,44 +309,29 @@ router.get("/download/:paymentId/:projectType/:projectId", async (req, res) => {
         const { paymentId, projectType, projectId } = req.params;
 
         // Verify the payment exists and is valid
-        const orderCheck = await exe(
-            "SELECT * FROM orders WHERE payment_id = ? AND project_id = ? AND project_type = ? AND status = 'PAID'",
-            [paymentId, projectId, projectType]
-        );
+        const orderCheck = await Order.findOne({
+            payment_id: paymentId,
+            project_id: projectId,
+            project_type: projectType,
+            status: "PAID"
+        });
 
-        if (!orderCheck || orderCheck.length === 0) {
+        if (!orderCheck) {
             return res.status(403).send("Access denied. Valid payment required to download this project.");
         }
 
-        const tableMap = {
-            "ready": "ready_projects",
-            "mini": "mini_projects",
-            "bundle": "bundle_projects",
-            "ecommerce": "ecommerce_projects",
-            "web": "web_development_projects",
-            "fullstack": "fullstack_projects",
-            "mobile": "mobile_projects",
-            "ai": "ai_projects",
-            "ds": "ds_projects",
-            "gaming": "gaming_projects",
-            "cyber": "cyber_projects",
-            "blockchain": "blockchain_projects",
-            "cloud": "cloud_projects",
-            "elearning": "elearning_projects"
-        };
+        const Model = projectModelMap[projectType];
+        if (!Model) return res.status(400).send("Invalid project type.");
 
-        const tableName = tableMap[projectType];
-        if (!tableName) return res.status(400).send("Invalid project type.");
+        const projectData = await Model.findById(projectId);
 
-        const projectData = await exe(`SELECT ProjectZIPFile FROM ${tableName} WHERE ProjectID = ?`, [projectId]);
-
-        if (!projectData || projectData.length === 0) {
-            return res.status(404).send("Project not found.");
+        if (!projectData || !projectData.ProjectZIPFile) {
+            return res.status(404).send("Project file not found.");
         }
 
         const path = require("path");
         const fs = require("fs");
-        const zipFileName = projectData[0].ProjectZIPFile;
+        const zipFileName = projectData.ProjectZIPFile;
         const zipPath = path.join(__dirname, "../public/uploads", zipFileName);
 
         if (!fs.existsSync(zipPath)) {
@@ -321,10 +351,7 @@ router.get("/my-orders", async (req, res) => {
     if (!email) return res.render("user/my-orders.ejs", { orders: [], email: "" });
 
     try {
-        const orders = await exe(
-            "SELECT * FROM orders WHERE buyer_email = ? ORDER BY created_at DESC",
-            [email]
-        );
+        const orders = await Order.find({ buyer_email: email }).sort({ created_at: -1 });
         res.render("user/my-orders.ejs", { orders, email });
     } catch (err) {
         console.error("Error fetching orders:", err);
@@ -332,167 +359,145 @@ router.get("/my-orders", async (req, res) => {
     }
 });
 
-
-// =============================================
-// E-LEARNING PROJECTS USER ROUTES
-// =============================================
-
+// Category/Project detail routes
 router.get("/elearning-projects", async function (req, res) {
-    var sql = `SELECT * FROM elearning_projects`;
-    var elearning_projects = await exe(sql);
+    var elearning_projects = await ElearningProject.find();
     res.render("user/elearning-projects.ejs", { elearning_projects });
 });
 
 router.get("/single-elearning-project/:id", async function (req, res) {
-    var sql = `SELECT * FROM elearning_projects WHERE ProjectID = ?`;
-    var result = await exe(sql, [req.params.id]);
-    res.render("user/single-elearning-project.ejs", { single_elearning_project: result[0] });
+    try {
+        var result = await ElearningProject.findById(req.params.id);
+        res.render("user/single-elearning-project.ejs", { single_elearning_project: result });
+    } catch (err) {
+        res.render("user/single-elearning-project.ejs", { single_elearning_project: null });
+    }
 });
 
-// =============================================
-// CLOUD & DEVOPS PROJECTS USER ROUTES
-// =============================================
-
 router.get("/cloud-projects", async function (req, res) {
-    var sql = `SELECT * FROM cloud_projects`;
-    var cloud_projects = await exe(sql);
+    var cloud_projects = await CloudProject.find();
     res.render("user/cloud-projects.ejs", { cloud_projects });
 });
 
 router.get("/single-cloud-project/:id", async function (req, res) {
-    var sql = `SELECT * FROM cloud_projects WHERE ProjectID = ?`;
-    var result = await exe(sql, [req.params.id]);
-    res.render("user/single-cloud-project.ejs", { single_cloud_project: result[0] });
+    try {
+        var result = await CloudProject.findById(req.params.id);
+        res.render("user/single-cloud-project.ejs", { single_cloud_project: result });
+    } catch (err) {
+        res.render("user/single-cloud-project.ejs", { single_cloud_project: null });
+    }
 });
 
-// =============================================
-// E-COMMERCE PROJECTS USER ROUTES
-// =============================================
-
 router.get("/ecommerce-project-list", async function (req, res) {
-    var sql = `SELECT * FROM ecommerce_projects`;
-    var ecommerce_projects = await exe(sql);
+    var ecommerce_projects = await EcommerceProject.find();
     res.render("user/ecommerce-project-list.ejs", { ecommerce_projects });
 });
 
 router.get("/single-ecommerce-project/:id", async function (req, res) {
-    var sql = `SELECT * FROM ecommerce_projects WHERE ProjectID = ?`;
-    var result = await exe(sql, [req.params.id]);
-    res.render("user/single-project-details.ejs", { single_ready_projects: result[0] });
+    try {
+        var result = await EcommerceProject.findById(req.params.id);
+        res.render("user/single-project-details.ejs", { single_ready_projects: result });
+    } catch (err) {
+        res.render("user/single-project-details.ejs", { single_ready_projects: null });
+    }
 });
 
-// =============================================
-// FULL STACK PROJECTS USER ROUTES
-// =============================================
-
 router.get("/fullstack-project-list", async function (req, res) {
-    var sql = `SELECT * FROM fullstack_projects`;
-    var fullstack_projects = await exe(sql);
+    var fullstack_projects = await FullstackProject.find();
     res.render("user/fullstack-project-list.ejs", { fullstack_projects });
 });
 
 router.get("/single-fullstack-project/:id", async function (req, res) {
-    var sql = `SELECT * FROM fullstack_projects WHERE ProjectID = ?`;
-    var result = await exe(sql, [req.params.id]);
-    res.render("user/single-project-details.ejs", { single_ready_projects: result[0] });
+    try {
+        var result = await FullstackProject.findById(req.params.id);
+        res.render("user/single-project-details.ejs", { single_ready_projects: result });
+    } catch (err) {
+        res.render("user/single-project-details.ejs", { single_ready_projects: null });
+    }
 });
 
-// =============================================
-// MOBILE APP PROJECTS USER ROUTES
-// =============================================
-
 router.get("/mobile-project-list", async function (req, res) {
-    var sql = `SELECT * FROM mobile_projects`;
-    var mobile_projects = await exe(sql);
+    var mobile_projects = await MobileProject.find();
     res.render("user/mobile-project-list.ejs", { mobile_projects });
 });
 
 router.get("/single-mobile-project/:id", async function (req, res) {
-    var sql = `SELECT * FROM mobile_projects WHERE ProjectID = ?`;
-    var result = await exe(sql, [req.params.id]);
-    res.render("user/single-project-details.ejs", { single_ready_projects: result[0] });
+    try {
+        var result = await MobileProject.findById(req.params.id);
+        res.render("user/single-project-details.ejs", { single_ready_projects: result });
+    } catch (err) {
+        res.render("user/single-project-details.ejs", { single_ready_projects: null });
+    }
 });
 
-// =============================================
-// AI / ML PROJECTS USER ROUTES
-// =============================================
-
 router.get("/ai-project-list", async function (req, res) {
-    var sql = `SELECT * FROM ai_projects`;
-    var ai_projects = await exe(sql);
+    var ai_projects = await AiProject.find();
     res.render("user/ai-project-list.ejs", { ai_projects });
 });
 
 router.get("/single-ai-project/:id", async function (req, res) {
-    var sql = `SELECT * FROM ai_projects WHERE ProjectID = ?`;
-    var result = await exe(sql, [req.params.id]);
-    res.render("user/single-project-details.ejs", { single_ready_projects: result[0] });
+    try {
+        var result = await AiProject.findById(req.params.id);
+        res.render("user/single-project-details.ejs", { single_ready_projects: result });
+    } catch (err) {
+        res.render("user/single-project-details.ejs", { single_ready_projects: null });
+    }
 });
 
-// =============================================
-// DATA SCIENCE PROJECTS USER ROUTES
-// =============================================
-
 router.get("/ds-project-list", async function (req, res) {
-    var sql = `SELECT * FROM ds_projects`;
-    var ds_projects = await exe(sql);
+    var ds_projects = await DsProject.find();
     res.render("user/ds-project-list.ejs", { ds_projects });
 });
 
 router.get("/single-ds-project/:id", async function (req, res) {
-    var sql = `SELECT * FROM ds_projects WHERE ProjectID = ?`;
-    var result = await exe(sql, [req.params.id]);
-    res.render("user/single-project-details.ejs", { single_ready_projects: result[0] });
+    try {
+        var result = await DsProject.findById(req.params.id);
+        res.render("user/single-project-details.ejs", { single_ready_projects: result });
+    } catch (err) {
+        res.render("user/single-project-details.ejs", { single_ready_projects: null });
+    }
 });
 
-// =============================================
-// GAMING PROJECTS USER ROUTES
-// =============================================
-
 router.get("/gaming-project-list", async function (req, res) {
-    var sql = `SELECT * FROM gaming_projects`;
-    var gaming_projects = await exe(sql);
+    var gaming_projects = await GamingProject.find();
     res.render("user/gaming-project-list.ejs", { gaming_projects });
 });
 
 router.get("/single-gaming-project/:id", async function (req, res) {
-    var sql = `SELECT * FROM gaming_projects WHERE ProjectID = ?`;
-    var result = await exe(sql, [req.params.id]);
-    res.render("user/single-project-details.ejs", { single_ready_projects: result[0] });
+    try {
+        var result = await GamingProject.findById(req.params.id);
+        res.render("user/single-project-details.ejs", { single_ready_projects: result });
+    } catch (err) {
+        res.render("user/single-project-details.ejs", { single_ready_projects: null });
+    }
 });
 
-// =============================================
-// CYBER SECURITY PROJECTS USER ROUTES
-// =============================================
-
 router.get("/cyber-project-list", async function (req, res) {
-    var sql = `SELECT * FROM cyber_projects`;
-    var cyber_projects = await exe(sql);
+    var cyber_projects = await CyberProject.find();
     res.render("user/cyber-project-list.ejs", { cyber_projects });
 });
 
 router.get("/single-cyber-project/:id", async function (req, res) {
-    var sql = `SELECT * FROM cyber_projects WHERE ProjectID = ?`;
-    var result = await exe(sql, [req.params.id]);
-    res.render("user/single-project-details.ejs", { single_ready_projects: result[0] });
+    try {
+        var result = await CyberProject.findById(req.params.id);
+        res.render("user/single-project-details.ejs", { single_ready_projects: result });
+    } catch (err) {
+        res.render("user/single-project-details.ejs", { single_ready_projects: null });
+    }
 });
 
-// =============================================
-// BLOCKCHAIN PROJECTS USER ROUTES
-// =============================================
-
 router.get("/blockchain-project-list", async function (req, res) {
-    var sql = `SELECT * FROM blockchain_projects`;
-    var blockchain_projects = await exe(sql);
+    var blockchain_projects = await BlockchainProject.find();
     res.render("user/blockchain-project-list.ejs", { blockchain_projects });
 });
 
 router.get("/single-blockchain-project/:id", async function (req, res) {
-    var sql = `SELECT * FROM blockchain_projects WHERE ProjectID = ?`;
-    var result = await exe(sql, [req.params.id]);
-    res.render("user/single-project-details.ejs", { single_ready_projects: result[0] });
+    try {
+        var result = await BlockchainProject.findById(req.params.id);
+        res.render("user/single-project-details.ejs", { single_ready_projects: result });
+    } catch (err) {
+        res.render("user/single-project-details.ejs", { single_ready_projects: null });
+    }
 });
 
-// MUST be at the end
 module.exports = router;
-
