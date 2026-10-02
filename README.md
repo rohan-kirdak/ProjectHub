@@ -1,4 +1,4 @@
-# 🐇 Project Rabbit - Project Marketplace
+#  ProjectHub- Project Marketplace
 
 A full-featured project marketplace with Razorpay payment integration, admin panel, and multiple project category management.
 
